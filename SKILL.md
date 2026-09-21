@@ -1,0 +1,259 @@
+# AI Report Tool
+
+用于管理日报、周报、月报、年报。
+
+## When to Use
+
+当用户要求以下操作时使用本 Skill：
+
+* 写/保存日报、周报、月报、年报
+* 查看当前或历史报告
+* 修改报告
+* 删除报告
+* 查询/搜索报告
+* 根据历史工作记录生成总结
+
+---
+
+## Core Rules
+
+1. **Agent 负责生成内容，MCP 负责保存和读取。**
+2. 不要直接修改 `~/.ai-report-tool/` 中的文件。
+3. 创建前优先检查目标周期是否已有报告。
+4. 已存在时不要直接 `create_report`，需要更新则使用 `update_report`。
+5. 删除报告必须是用户明确要求。
+6. 不要虚构用户没有完成的工作。
+7. MCP 返回的 JSON 是内部数据，正常情况下转换成自然语言回复。
+
+---
+
+## Available MCP Tools
+
+### 查看
+
+```text
+get_today_report
+get_week_report
+get_month_report
+get_year_report
+```
+
+### 操作
+
+```text
+create_report
+update_report
+delete_report
+query_reports
+```
+
+`type`：
+
+```text
+daily
+weekly
+monthly
+yearly
+```
+
+---
+
+## Daily Report
+
+用户要求：
+
+> 帮我写今天的日报
+
+流程：
+
+```text
+get_today_report
+      ↓
+判断是否存在
+      ↓
+不存在 → 根据当前上下文生成 → create_report
+存在   → 用户要求修改 → update_report
+存在   → 未要求修改 → 告知已有报告
+```
+
+日报内容应基于用户实际完成的工作进行整理，不要虚构。
+
+---
+
+## Weekly Report
+
+用户要求写周报：
+
+```text
+get_week_report
+      ↓
+query_reports(type=daily, 本周范围)
+      ↓
+AI 总结
+      ↓
+create_report / update_report
+```
+
+重点总结：
+
+* 本周完成的工作
+* 项目进展
+* 技术开发
+* 问题及解决
+* 下周计划
+
+---
+
+## Monthly Report
+
+用户要求写月报：
+
+```text
+get_month_report
+      ↓
+query_reports(type=weekly, 本月)
+      ↓
+必要时查询 daily
+      ↓
+AI 总结
+      ↓
+create_report / update_report
+```
+
+优先使用周报作为月报素材，信息不足时再查询日报。
+
+---
+
+## Yearly Report
+
+用户要求写年报：
+
+```text
+get_year_report
+      ↓
+query_reports(type=monthly, 本年)
+      ↓
+必要时查询 weekly / daily
+      ↓
+AI 总结
+      ↓
+create_report / update_report
+```
+
+优先使用月报作为年度总结素材。
+
+---
+
+## Query
+
+用户要求：
+
+> 查一下最近关于 MCP 的工作
+
+使用：
+
+```text
+query_reports(
+  type=daily,
+  keyword="MCP"
+)
+```
+
+用户指定日期范围时使用：
+
+```text
+query_reports(
+  type=daily,
+  from="YYYY-MM-DD",
+  to="YYYY-MM-DD"
+)
+```
+
+尽量缩小查询范围，不要无必要地读取全部历史报告。
+
+---
+
+## Update
+
+用户明确要求：
+
+* 修改日报
+* 更新日报
+* 重新整理日报
+* 把日报改成……
+
+使用：
+
+```text
+update_report
+```
+
+不要通过 `delete_report + create_report` 实现修改。
+
+---
+
+## Delete
+
+只有用户明确要求删除时使用：
+
+```text
+delete_report
+```
+
+---
+
+## Report Generation
+
+生成报告时：
+
+* 只使用用户提供或上下文中真实存在的信息
+* 合理归纳，但不要编造
+* 内容简洁、专业
+* 避免重复
+* 保留重要的开发、测试、修复、学习和项目进展
+
+---
+
+## Response Style
+
+操作成功后简洁回复。
+
+例如：
+
+```text
+今天的日报已经保存。
+```
+
+```text
+本周周报已经更新。
+```
+
+查询结果较多时，先告诉用户找到多少条，再展示相关内容。
+
+不要默认向用户展示 MCP Tool 调用过程或原始 JSON。
+
+---
+
+## Decision Flow
+
+```text
+用户请求
+   │
+   ├── 查看 → get_*_report
+   │
+   ├── 查询 → query_reports
+   │
+   ├── 创建
+   │    └── 先检查 → create_report
+   │
+   ├── 修改 → update_report
+   │
+   ├── 删除 → delete_report
+   │
+   └── 总结
+        ├── 周报 ← 日报
+        ├── 月报 ← 周报/日报
+        └── 年报 ← 月报/周报
+```
+
+**原则：Agent 负责理解、整理和生成；MCP 负责调用；Core 负责数据管理。**

@@ -1,0 +1,5 @@
+node_modules
+dist
+/temps
+/outputs
+/*.mp4
