@@ -18,11 +18,15 @@ import {
   ReportExistsError,
   ReportNotFoundError,
   ValidationError,
+  toPeriod,
 } from '../core'
 import type { Report, ReportType } from '../core'
 import pkg from '../../package.json'
 
-const manager = new ReportManager()
+const manager = new ReportManager(
+  // 支持通过环境变量覆盖存储目录（测试隔离/多实例场景）；缺省为 ~/.ai-report-tool
+  process.env.AI_REPORT_STORAGE_DIR ? { storageDir: process.env.AI_REPORT_STORAGE_DIR } : {},
+)
 
 // ---------- 公共 schema 与结果包装 ----------
 
@@ -218,6 +222,17 @@ server.registerTool(
     }),
 )
 
+/** 本周的起止日期（周一至周日，YYYY-MM-DD；周一为起点，与 Core isoWeek 语义一致） */
+function thisWeekRange(): { from: string; to: string } {
+  const now = new Date()
+  const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  monday.setDate(monday.getDate() - ((monday.getDay() || 7) - 1))
+  const sunday = new Date(monday)
+  sunday.setDate(monday.getDate() + 6)
+  const fmt = (d: Date): string => toPeriod('daily', d)
+  return { from: fmt(monday), to: fmt(sunday) }
+}
+
 // --- 8. query_reports ---
 server.registerTool(
   'query_reports',
@@ -239,6 +254,29 @@ server.registerTool(
         success: true,
         action: 'queried',
         type,
+        count: reports.length,
+        reports,
+      }
+    }),
+)
+
+// --- 9. get_week_dailies ---
+server.registerTool(
+  'get_week_dailies',
+  {
+    title: '获取本周的所有日报',
+    description:
+      '获取本周（周一至周日）的全部日报列表。当用户询问本周每天都做了什么、查看本周全部日报、或需要汇总本周日报来写周报时使用。返回按日期升序的日报数组；本周还没有任何日报时返回空列表。',
+  },
+  async () =>
+    guard(async () => {
+      const { from, to } = thisWeekRange()
+      const reports = await manager.query('daily', { from, to })
+      return {
+        success: true,
+        action: 'queried',
+        type: 'daily',
+        range: { from, to },
         count: reports.length,
         reports,
       }

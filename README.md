@@ -55,15 +55,16 @@ npm install -g ai-report-tool
 ai-report --help
 ```
 
-CLI 与库使用同一份存储（默认 `~/.ai-report-tool/`），是 Core API 的直接适配层。
+CLI 与库使用同一份存储（默认 `~/.ai-report-tool/`），是 Core API 的直接适配层。可通过环境变量 `AI_REPORT_STORAGE_DIR` 覆盖存储目录（对 CLI 和 MCP Server 均生效）。
 
 ### 查看当前报告
 
 ```bash
-ai-report today     # 今天的日报（getToday()）
-ai-report week      # 本周的周报（getThisWeek()）
-ai-report month     # 本月的月报（getThisMonth()）
-ai-report year      # 今年的年报（getThisYear()）
+ai-report today         # 今天的日报（getToday()）
+ai-report week          # 本周的周报（getThisWeek()）
+ai-report week-dailies  # 本周的所有日报（周一至周日，等价于 query daily --from 本周一 --to 本周日）
+ai-report month         # 本月的月报（getThisMonth()）
+ai-report year          # 今年的年报（getThisYear()）
 ```
 
 输出示例：
@@ -159,6 +160,7 @@ npm install -g ai-report-tool
 | `get_week_report` | 无 | `getThisWeek()` |
 | `get_month_report` | 无 | `getThisMonth()` |
 | `get_year_report` | 无 | `getThisYear()` |
+| `get_week_dailies` | 无 | `query('daily', { from: 本周一, to: 本周日 })` |
 | `create_report` | `type`、`date`、`content` | `create()` |
 | `update_report` | `type`、`date`、`content` | `update()` |
 | `delete_report` | `type`、`date` | `delete()` |

@@ -14,6 +14,7 @@ import {
   ReportNotFoundError,
   ValidationError,
   REPORT_TYPES,
+  toPeriod,
 } from '../core'
 import type { Report, ReportType } from '../core'
 import pkg from '../../package.json'
@@ -33,6 +34,7 @@ const HELP = `ai-report — AI 报告工具命令行 v${pkg.version}
 用法：
   ai-report today                        查看今天的日报
   ai-report week                         查看本周的周报
+  ai-report week-dailies                 查看本周的所有日报
   ai-report month                        查看本月的月报
   ai-report year                         查看今年的年报
 
@@ -104,7 +106,10 @@ function parseDateArg(value: string | undefined, what: string): string {
 
 // ---------- 命令实现（每个命令只做适配，不含业务逻辑） ----------
 
-const manager = new ReportManager()
+const manager = new ReportManager(
+  // 支持通过环境变量覆盖存储目录（测试隔离/多实例场景）；缺省为 ~/.ai-report-tool
+  process.env.AI_REPORT_STORAGE_DIR ? { storageDir: process.env.AI_REPORT_STORAGE_DIR } : {},
+)
 
 /** today / week / month / year：查看当前周期报告（直接映射 Core 快捷方法） */
 async function showCurrent(type: ReportType): Promise<void> {
@@ -121,6 +126,36 @@ async function showCurrent(type: ReportType): Promise<void> {
     return
   }
   printReport(report)
+}
+
+/** 本周的起止日期（周一至周日，YYYY-MM-DD） */
+function thisWeekRange(): { from: string; to: string } {
+  const now = new Date()
+  const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  monday.setDate(monday.getDate() - ((monday.getDay() || 7) - 1)) // 周一为一周起点，与 Core isoWeek 一致
+  const sunday = new Date(monday)
+  sunday.setDate(monday.getDate() + 6)
+  const fmt = (d: Date): string => toPeriod('daily', d)
+  return { from: fmt(monday), to: fmt(sunday) }
+}
+
+/** week-dailies：列出本周的所有日报（等价于 query daily --from 本周一 --to 本周日） */
+async function showWeekDailies(): Promise<void> {
+  const { from, to } = thisWeekRange()
+  const reports = await manager.query('daily', { from, to })
+  if (reports.length === 0) {
+    console.log(`本周（${from} ~ ${to}）还没有日报。`)
+    return
+  }
+  console.log(`本周（${from} ~ ${to}）共 ${reports.length} 条日报：`)
+  console.log(SEP)
+  for (const report of reports) {
+    console.log(`◆ ${report.period}`)
+    for (const line of report.content.split('\n')) {
+      console.log(`  ${line}`)
+    }
+    console.log(`  更新时间：${formatTimestamp(report.updatedAt)}`)
+  }
 }
 
 async function cmdCreate(args: string[]): Promise<void> {
@@ -224,6 +259,9 @@ async function run(): Promise<void> {
       return
     case 'week':
       await showCurrent('weekly')
+      return
+    case 'week-dailies':
+      await showWeekDailies()
       return
     case 'month':
       await showCurrent('monthly')

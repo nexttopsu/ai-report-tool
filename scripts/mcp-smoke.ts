@@ -1,9 +1,14 @@
 /**
  * MCP 协议层集成测试：通过 stdio 启动 dist/mcp/server.js，用官方 SDK Client
- * 逐个调用 8 个 Tool，验证结果结构、错误转换与 Server 存活。
+ * 逐个调用 9 个 Tool，验证结果结构、错误转换与 Server 存活。
  *
  * 运行：npx tsx scripts/mcp-smoke.ts
+ *
+ * 隔离：通过 AI_REPORT_STORAGE_DIR 让 Server 写入临时目录，绝不触碰 ~/.ai-report-tool。
  */
+import * as fs from 'node:fs/promises'
+import * as os from 'node:os'
+import * as path from 'node:path'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 
@@ -38,13 +43,16 @@ async function callTool(
 }
 
 async function main(): Promise<void> {
+  // 隔离的临时存储目录：Server 子进程通过环境变量读取，测试结束后清理
+  const storageDir = await fs.mkdtemp(path.join(os.tmpdir(), 'ai-report-mcp-test-'))
   const transport = new StdioClientTransport({
     command: process.execPath,
     args: [SERVER],
+    env: { ...process.env, AI_REPORT_STORAGE_DIR: storageDir },
   })
   const client = new Client({ name: 'smoke-test-client', version: '0.0.1' })
   await client.connect(transport)
-  console.log('已连接 MCP Server\n')
+  console.log(`已连接 MCP Server（隔离存储: ${storageDir}）\n`)
 
   // --- 工具发现 ---
   const { tools } = await client.listTools()
@@ -54,12 +62,13 @@ async function main(): Promise<void> {
     'delete_report',
     'get_month_report',
     'get_today_report',
+    'get_week_dailies',
     'get_week_report',
     'get_year_report',
     'query_reports',
     'update_report',
   ]
-  step('工具发现：共 8 个 Tool', names.length === 8, names.join(', '))
+  step('工具发现：共 9 个 Tool', names.length === 9, names.join(', '))
   step(
     '工具发现：名称与预期完全一致',
     JSON.stringify(names) === JSON.stringify(expected),
@@ -175,6 +184,23 @@ async function main(): Promise<void> {
   r = await callTool(client, 'query_reports', { type: 'daily', keyword: '绝不存在的关键字' })
   step('query_reports 无命中 count=0', r.body?.success === true && r.body?.count === 0)
 
+  // --- 9. get_week_dailies（本周日报列表） ---
+  r = await callTool(client, 'get_week_dailies')
+  step(
+    'get_week_dailies 返回本周区间与日报列表',
+    r.body?.success === true &&
+      r.body?.type === 'daily' &&
+      typeof r.body?.range?.from === 'string' &&
+      typeof r.body?.range?.to === 'string' &&
+      typeof r.body?.count === 'number' &&
+      Array.isArray(r.body?.reports),
+    `range=${r.body?.range?.from} ~ ${r.body?.range?.to}, count=${r.body?.count}`,
+  )
+  const inRange = (r.body?.reports ?? []).every(
+    (x: any) => x.period >= r.body.range.from && x.period <= r.body.range.to,
+  )
+  step('get_week_dailies 全部结果都在本周区间内', inRange)
+
   // --- 10. 非法参数 → VALIDATION_ERROR（schema 层） ---
   r = await callTool(client, 'create_report', {
     type: 'quarterly',
@@ -210,11 +236,12 @@ async function main(): Promise<void> {
     '连接保持',
   )
 
-  // --- 清理测试周报，还原默认目录 ---
+  // --- 清理测试周报（临时目录随脚本结束整体删除） ---
   r = await callTool(client, 'delete_report', { type: 'weekly', date: '2026-09-21' })
   step('清理测试周报', r.body?.deleted === true)
 
   await client.close()
+  await fs.rm(storageDir, { recursive: true, force: true })
   console.log(`\n===== 汇总: ${passed} 项通过, ${failed} 项失败 =====`)
   if (failed > 0) process.exitCode = 1
 }
