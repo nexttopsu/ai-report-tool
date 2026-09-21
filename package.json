@@ -31,7 +31,7 @@
   },
   "files": [
     "dist",
-    "SKILL.md"
+    "skills"
   ],
   "scripts": {
     "dev": "tsx example.ts",
