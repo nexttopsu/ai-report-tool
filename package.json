@@ -42,7 +42,7 @@
     "prepublishOnly": "npm run build"
   },
   "keywords": [
-    "ai",
+    "ai-report-tool",
     "report",
     "tool"
   ],
