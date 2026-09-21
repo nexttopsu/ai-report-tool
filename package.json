@@ -2,6 +2,14 @@
   "name": "ai-report-tool",
   "version": "0.2.0",
   "description": "AI report tool",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nexttopsu/ai-report-tool.git"
+  },
+  "bugs": {
+    "url": "https://github.com/nexttopsu/ai-report-tool/issues"
+  },
+  "homepage": "https://github.com/nexttopsu/ai-report-tool#readme",
   "main": "./dist/index.cjs",
   "module": "./dist/index.mjs",
   "bin": {

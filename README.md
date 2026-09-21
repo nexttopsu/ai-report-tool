@@ -5,7 +5,7 @@ AI 报告工具核心库（TypeScript / Node.js ≥ 18，零运行时依赖）�
 ## 安装与构建
 
 ```bash
-npm install        # 仅 dev 依赖（typescript / @types/node）
+npm install ai-report-tool        # 仅 dev 依赖（typescript / @types/node）
 npm test           # 编译 + 运行 23 个单元测试
 npm run build      # 产出 dist/
 ```
