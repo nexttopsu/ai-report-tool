@@ -1,6 +1,26 @@
+---
+name: ai-report-tool
+slug: ai-report-tool
+displayName: AI Report Tool
+name_en: AI Report Tool
+name_zh: AI 报告工具
+version: 0.3.0
+description: Manage daily, weekly, monthly, and yearly work reports via the ai-report CLI or the ai-report-mcp MCP server. Use when the user asks to write, save, view, update, delete, or search work reports (日报/周报/月报/年报), or to generate summaries from historical reports.
+description_en: Manage daily, weekly, monthly, and yearly work reports via the ai-report CLI or the ai-report-mcp MCP server. Use when the user asks to write, save, view, update, delete, or search work reports (日报/周报/月报/年报), or to generate summaries from historical reports.
+description_zh: 通过 ai-report 命令行或 ai-report-mcp MCP 服务管理日报、周报、月报、年报。当用户要求写/保存/查看/修改/删除/查询工作报告，或根据历史记录生成总结时使用。
+argument-hint: Describe the report task, e.g. write today's daily report or query last week's work
+argument-hint-en: Describe the report task, e.g. write today's daily report or query last week's work
+argument-hint-zh: 描述报告任务，例如写今天的日报或查询上周的工作
+author: nexttopsu
+license: ISC
+user-invocable: true
+---
+
 # AI Report Tool
 
 用于管理日报、周报、月报、年报。
+
+**前置条件**：已安装 ai-report-tool（`npm install -g ai-report-tool`），并将 `ai-report-mcp` 注册为 MCP Server；未注册 MCP 时可退回全局 CLI `ai-report`（命令与 MCP 工具一一对应，如 `ai-report today` ↔ `get_today_report`）。
 
 ## When to Use
 
