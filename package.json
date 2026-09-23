@@ -1,7 +1,7 @@
 {
   "name": "ai-report-tool",
-  "version": "0.3.6",
-  "description": "AI report tool",
+  "version": "0.3.10",
+  "description": "Report tool",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/nexttopsu/ai-report-tool.git"

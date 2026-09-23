@@ -1,9 +1,9 @@
 ---
 name: ai-report-tool
 slug: ai-report-tool
-displayName: AI Report Tool
-name_en: AI Report Tool
-name_zh: AI 报告工具
+displayName: Report Tool
+name_en: Report Tool
+name_zh: 日报工具
 version: 0.3.10
 description: Manage daily, weekly, monthly, and yearly work reports. Use when the user asks to write, save, view, update, delete, or search work reports (日报/周报/月报/年报), or to generate summaries from historical reports.
 description_en: Manage daily, weekly, monthly, and yearly work reports. Use when the user asks to write, save, view, update, delete, or search work reports (日报/周报/月报/年报), or to generate summaries from historical reports.
