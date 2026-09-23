@@ -53,8 +53,8 @@ function ok(payload: Record<string, unknown>): { content: { type: 'text'; text: 
   return { content: [{ type: 'text' as const, text: JSON.stringify(payload, null, 2) }] }
 }
 
-/** Core 错误 → 结构化失败结果（isError=true，Agent 可读取错误码） */
-function fail(err: unknown): {
+/** Core 错误 → 结构化失败结果（isError=true，Agent 可读取错误码）；extra 可向 error 附带补充信息 */
+function fail(err: unknown, extra?: Record<string, unknown>): {
   content: { type: 'text'; text: string }[]
   isError: boolean
 } {
@@ -65,7 +65,12 @@ function fail(err: unknown): {
   const message = err instanceof Error ? err.message : String(err)
   // 结构化错误对象放 content（协议要求文本），同时用 isError 标记失败
   return {
-    content: [{ type: 'text' as const, text: JSON.stringify({ success: false, error: { code, message } }) }],
+    content: [
+      {
+        type: 'text' as const,
+        text: JSON.stringify({ success: false, error: { code, message, ...extra } }),
+      },
+    ],
     isError: true,
   }
 }
@@ -176,8 +181,23 @@ server.registerTool(
       content: contentSchema,
     },
   },
-  async ({ type, date, content }) =>
-    guard(async () => reportResult('created', await manager.create(type, date, content))),
+  async ({ type, date, content }) => {
+    try {
+      const created = await manager.create(type, date, content)
+      return ok(reportResult('created', created))
+    } catch (err) {
+      // 已存在时附带已有报告的元信息，让 Agent 能直接告知用户"何时保存过"，省一次查询
+      if (err instanceof ReportExistsError) {
+        const existing = await manager.get(type, date)
+        return fail(err, {
+          existingReport: existing
+            ? { period: existing.period, updatedAt: existing.updatedAt }
+            : null,
+        })
+      }
+      return fail(err)
+    }
+  },
 )
 
 // --- 6. update_report ---
@@ -203,7 +223,7 @@ server.registerTool(
   {
     title: '删除报告',
     description:
-      '删除一份报告。仅当用户明确要求删除时使用。目标周期没有报告时不会报错，返回 deleted: false。',
+      '删除一份报告。仅当用户明确要求删除时使用。物理删除、不可恢复。返回 deletedReport（被删报告的 period 与正文），便于向用户确认删掉了什么；目标周期没有报告时不会报错，返回 deleted: false。',
     inputSchema: {
       type: typeSchema,
       date: dateSchema,
@@ -211,6 +231,7 @@ server.registerTool(
   },
   async ({ type, date }) =>
     guard(async () => {
+      const existing = await manager.get(type, date)
       const deleted = await manager.delete(type, date)
       return {
         success: true,
@@ -218,6 +239,7 @@ server.registerTool(
         deleted,
         type,
         date,
+        deletedReport: deleted && existing ? { period: existing.period, content: existing.content } : null,
       }
     }),
 )
@@ -233,29 +255,54 @@ function thisWeekRange(): { from: string; to: string } {
   return { from: fmt(monday), to: fmt(sunday) }
 }
 
+/** 周一至今还没有日报的日期（已过但未写的天；未来日期不算缺勤） */
+function missingDailyDates(from: string, writtenPeriods: Set<string>): string[] {
+  const missing: string[] = []
+  const start = new Date(`${from}T00:00:00`)
+  const today = new Date()
+  for (let d = new Date(start); d <= today; d.setDate(d.getDate() + 1)) {
+    const period = toPeriod('daily', d)
+    if (!writtenPeriods.has(period)) missing.push(period)
+  }
+  return missing
+}
+
 // --- 8. query_reports ---
 server.registerTool(
   'query_reports',
   {
     title: '查询报告列表',
     description:
-      '按类型查询报告列表，支持日期区间（from/to）与正文关键字（keyword）过滤，按周期升序返回。当用户想回顾/检索历史日报、周报、月报、年报时使用。',
+      '按类型查询报告列表，支持日期区间（from/to）、正文关键字（keyword）与数量上限（limit，默认 50，按周期降序取最近的）过滤。返回 total（过滤后的总条数）与 reports（本次返回的列表）；total 超过返回条数时说明还有更早的历史，应缩小 from/to 范围或加 keyword 后再查。当用户想回顾/检索历史日报、周报、月报、年报时使用。',
     inputSchema: {
       type: typeSchema,
       from: dateSchema.optional().describe('起始日期（含），YYYY-MM-DD'),
       to: dateSchema.optional().describe('结束日期（含），YYYY-MM-DD'),
       keyword: z.string().min(1).optional().describe('正文关键字过滤'),
+      limit: z
+        .number()
+        .int()
+        .min(1)
+        .max(500)
+        .optional()
+        .describe('最多返回条数（默认 50），按周期降序取最近的'),
     },
   },
-  async ({ type, from, to, keyword }) =>
+  async ({ type, from, to, keyword, limit }) =>
     guard(async () => {
       const reports = await manager.query(type, { from, to, keyword })
+      const max = limit ?? 50
+      const truncated = reports.length > max
       return {
         success: true,
         action: 'queried',
         type,
-        count: reports.length,
-        reports,
+        total: reports.length,
+        count: truncated ? max : reports.length,
+        truncated,
+        reports: truncated
+          ? reports.slice(-max) // reports 已升序，取最近的 max 份
+          : reports,
       }
     }),
 )
@@ -266,7 +313,7 @@ server.registerTool(
   {
     title: '获取本周的所有日报',
     description:
-      '获取本周（周一至周日）的全部日报列表。当用户询问本周每天都做了什么、查看本周全部日报、或需要汇总本周日报来写周报时使用。返回按日期升序的日报数组；本周还没有任何日报时返回空列表。',
+      '获取本周（周一至周日）的全部日报列表。当用户询问本周每天都做了什么、查看本周全部日报、或需要汇总本周日报来写周报时使用。返回按日期升序的日报数组，以及 missingDates（周一至今还没有日报的日期，可据此提醒用户补写）；本周还没有任何日报时返回空列表。',
   },
   async () =>
     guard(async () => {
@@ -278,6 +325,7 @@ server.registerTool(
         type: 'daily',
         range: { from, to },
         count: reports.length,
+        missingDates: missingDailyDates(from, new Set(reports.map((r) => r.period))),
         reports,
       }
     }),

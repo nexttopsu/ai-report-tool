@@ -133,11 +133,15 @@ export class ReportManager {
   // ---------- 查询 ----------
 
   /**
-   * 按类型列出报告，支持 from/to 日期区间与 keyword 关键字过滤，按周期升序返回。
+   * 按类型列出报告，支持 from/to 日期区间、keyword 关键字过滤与 limit 截断。
+   * 默认按周期升序返回全部；设置 limit 后按周期降序返回最近的 limit 份。
    * 目录中无法解析的非报告 txt 文件会被跳过（目录设计为可直接人工放置笔记）。
    */
   async query(type: ReportType, options: QueryOptions = {}): Promise<Report[]> {
     validateType(type)
+    if (options.limit !== undefined && (!Number.isInteger(options.limit) || options.limit < 1)) {
+      throw new ValidationError('limit 必须是正整数')
+    }
     const reports: Report[] = []
     for (const filePath of await listTxtFiles(path.join(this.storageDir, type))) {
       const text = await fs.readFile(filePath, 'utf-8')
@@ -165,6 +169,13 @@ export class ReportManager {
           (fromPeriod === null || r.period >= fromPeriod) &&
           (toPeriodStr === null || r.period <= toPeriodStr),
       )
+    }
+    if (options.limit !== undefined) {
+      // 先按周期降序取最近 limit 份，再反转回升序（保持返回列表时间序友好）
+      return result
+        .sort((a, b) => b.period.localeCompare(a.period))
+        .slice(0, options.limit)
+        .reverse()
     }
     return result.sort((a, b) => a.period.localeCompare(b.period))
   }

@@ -67,6 +67,12 @@ ai-report month         # 本月的月报（getThisMonth()）
 ai-report year          # 今年的年报（getThisYear()）
 ```
 
+四个查看命令均支持 `--raw`，只输出报告正文（不带类型/时间戳头部），适合管道场景：
+
+```bash
+ai-report today --raw | pbcopy   # macOS 复制正文到剪贴板
+```
+
 输出示例：
 
 ```
@@ -104,6 +110,7 @@ ai-report delete daily 2026-09-21
 ai-report query daily                                # 全部日报
 ai-report query daily --from 2026-09-01 --to 2026-09-30
 ai-report query daily --keyword "告警"               # 也支持 --keyword=告警
+ai-report query daily --limit 10                     # 只看最近 10 条（也支持 --limit=10）
 ai-report query weekly
 ```
 
@@ -164,8 +171,8 @@ npm install -g ai-report-tool
 | `get_week_dailies` | 无 | `query('daily', { from: 本周一, to: 本周日 })` |
 | `create_report` | `type`、`date`、`content` | `create()` |
 | `update_report` | `type`、`date`、`content` | `update()` |
-| `delete_report` | `type`、`date` | `delete()` |
-| `query_reports` | `type`，可选 `from`、`to`、`keyword` | `query()` |
+| `delete_report` | `type`、`date` | `delete()`（返回被删报告内容） |
+| `query_reports` | `type`，可选 `from`、`to`、`keyword`、`limit` | `query()`（默认最多返回 50 条，附 `total` 总数） |
 
 `type` 为 `daily / weekly / monthly / yearly`，`date` 为 `YYYY-MM-DD`。
 
@@ -178,10 +185,16 @@ npm install -g ai-report-tool
 { "success": true, "action": "created", "report": { "type": "daily", "period": "2026-09-21", "content": "...", "createdAt": "...", "updatedAt": "..." } }
 
 // 失败（isError=true）
-{ "success": false, "error": { "code": "REPORT_EXISTS", "message": "daily 报告已存在: 2026-09-21" } }
+{ "success": false, "error": { "code": "REPORT_EXISTS", "message": "daily 报告已存在: 2026-09-21", "existingReport": { "period": "2026-09-21", "updatedAt": "..." } } }
 ```
 
-错误码：`REPORT_NOT_FOUND`（不存在）、`REPORT_EXISTS`（周期已存在，应改用 `update_report`）、`VALIDATION_ERROR`（非法参数）。查询当前周期报告不存在时同样返回 `REPORT_NOT_FOUND`，不会让 Server 崩溃。
+错误码：`REPORT_NOT_FOUND`（不存在）、`REPORT_EXISTS`（周期已存在，附 `existingReport` 元信息，应改用 `update_report`）、`VALIDATION_ERROR`（非法参数）。查询当前周期报告不存在时同样返回 `REPORT_NOT_FOUND`，不会让 Server 崩溃。
+
+补充说明：
+
+- `query_reports` 返回 `total`（过滤后总条数）与 `reports`（本次列表，默认最近 50 条），`truncated: true` 表示还有更早历史。
+- `get_week_dailies` 额外返回 `missingDates`（本周一至今还没写日报的日期），可用于提醒补写。
+- `delete_report` 返回 `deletedReport`（被删报告的 period 与正文），删除不可恢复。
 
 ### 设计约定
 
@@ -229,7 +242,7 @@ updatedAt: 2026-09-21T03:53:48.444Z
 | `getToday()` / `getThisWeek()` / `getThisMonth()` / `getThisYear()` | 当前周期便捷方法 |
 | `update(type, date, content)` | 覆盖正文并刷新 `updatedAt`；不存在抛 `ReportNotFoundError` |
 | `delete(type, date)` | 删除报告，返回是否真的删除 |
-| `query(type, { from, to, keyword })` | 按类型查询，支持区间与关键字，按周期升序 |
+| `query(type, { from, to, keyword, limit })` | 按类型查询，支持区间/关键字/数量上限（limit 取最近 N 份，升序返回） |
 | `export({ types, from, to, keyword, outputFile })` | 导出为单个 JSON 文件 |
 | `restore(file, { overwrite })` | 从导出文件恢复，返回 `{ restored, skipped }` |
 

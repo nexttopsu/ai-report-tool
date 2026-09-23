@@ -29,6 +29,11 @@ export interface QueryOptions {
   to?: string | Date
   /** 正文关键字过滤（包含匹配） */
   keyword?: string
+  /**
+   * 最多返回的份数（正整数）。设置后按周期**降序**返回最近的 limit 份，
+   * 未设置时按周期升序返回全部（历史量大时注意体量）。
+   */
+  limit?: number
 }
 
 /** 导出选项 */

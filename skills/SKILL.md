@@ -4,7 +4,7 @@ slug: ai-report-tool
 displayName: AI Report Tool
 name_en: AI Report Tool
 name_zh: AI 报告工具
-version: 0.3.3
+version: 0.3.4
 description: Manage daily, weekly, monthly, and yearly work reports via the ai-report CLI or the ai-report-mcp MCP server. Use when the user asks to write, save, view, update, delete, or search work reports (日报/周报/月报/年报), or to generate summaries from historical reports.
 description_en: Manage daily, weekly, monthly, and yearly work reports via the ai-report CLI or the ai-report-mcp MCP server. Use when the user asks to write, save, view, update, delete, or search work reports (日报/周报/月报/年报), or to generate summaries from historical reports.
 description_zh: 通过 ai-report 命令行或 ai-report-mcp MCP 服务管理日报、周报、月报、年报。当用户要求写/保存/查看/修改/删除/查询工作报告，或根据历史记录生成总结时使用。
@@ -94,17 +94,19 @@ yearly
 
 | MCP Tool | CLI 命令 |
 | --- | --- |
-| `get_today_report` | `ai-report today` |
-| `get_week_report` | `ai-report week` |
+| `get_today_report` | `ai-report today [--raw]` |
+| `get_week_report` | `ai-report week [--raw]` |
 | `get_week_dailies` | `ai-report week-dailies` |
-| `get_month_report` | `ai-report month` |
-| `get_year_report` | `ai-report year` |
+| `get_month_report` | `ai-report month [--raw]` |
+| `get_year_report` | `ai-report year [--raw]` |
 | `create_report` | `ai-report create <type> <内容> [--date <YYYY-MM-DD>]` |
 | `update_report` | `ai-report update <type> <date> <内容>` |
 | `delete_report` | `ai-report delete <type> <date>` |
 | `query_reports` | `ai-report query <type> [选项]` |
 
-`query` 选项：`--from <YYYY-MM-DD>`（起始，含）、`--to <YYYY-MM-DD>`（结束，含）、`--keyword <关键字>`（正文过滤）。
+`query` 选项：`--from <YYYY-MM-DD>`（起始，含）、`--to <YYYY-MM-DD>`（结束，含）、`--keyword <关键字>`（正文过滤）、`--limit <N>`（最多返回最近 N 条）。
+
+`--raw` 只输出报告正文（不带类型/时间戳头部），适合管道场景（如复制正文）。
 
 `create` 的 `--date` 选项指定归属日期（缺省为今天），报告周期由该日期决定，支持补写历史报告；与 MCP `create_report` 的 `date` 参数对齐。同一周期已存在报告时仍会报错，应改用 update。
 
@@ -228,6 +230,10 @@ count > 0 → 按天阅读各日报正文，归纳整理
 
 CLI 场景等价命令：`ai-report week-dailies`（获取素材）+ `ai-report create weekly "…"`（保存）。
 
+**写上周/历史周报**：`create_report` 的 `date` 传上周任意一天（如上周一）即可，工具会自动折算到对应 ISO 周，Agent 无需自己计算周号。同理月报传当月任意一天、年报传当年任意一天。
+
+`missingDates` 提示：`get_week_dailies` 返回的 `missingDates` 是本周已过但还没写日报的日期，汇总周报前可据此提醒用户"周三的日报还没写，要补吗？"。
+
 汇总要点：
 
 * 合并同类工作，按主题/项目分组，不要按天罗列流水账
@@ -303,7 +309,7 @@ query_reports(
 )
 ```
 
-尽量缩小查询范围，不要无必要地读取全部历史报告。
+尽量缩小查询范围，不要无必要地读取全部历史报告。历史量大时可传 `limit`（默认最多返回最近 50 条）；返回 `truncated: true` 时说明还有更早的历史，应加 from/to 或 keyword 缩小范围后再查。
 
 ---
 
@@ -416,17 +422,20 @@ delete_report
 * `content`：报告正文（纯文本，多行用 `\n` 分隔）
 * `createdAt` / `updatedAt`：ISO 8601 时间戳
 
-失败时返回 `success: false` 和结构化错误：
+失败时返回 `success: false` 和结构化错误（`REPORT_EXISTS` 会附带已有报告元信息，便于告知用户何时保存过）：
 
 ```json
 {
   "success": false,
   "error": {
     "code": "REPORT_EXISTS",
-    "message": "2026-09-23 的日报已存在"
+    "message": "daily 报告已存在: 2026-09-23",
+    "existingReport": { "period": "2026-09-23", "updatedAt": "2026-09-23T07:30:00.000Z" }
   }
 }
 ```
+
+`query_reports` 返回体额外字段：`total`（过滤后总条数）、`truncated`（是否还有更早历史）；默认最多返回最近 50 条，`truncated: true` 时应缩小 from/to 范围或加 keyword 再查。`get_week_dailies` 额外返回 `missingDates`（本周已过但未写日报的日期）。`delete_report` 返回 `deletedReport`（被删报告的 period 与正文）。
 
 ### 周期标识格式
 
@@ -460,7 +469,7 @@ delete_report
 | MCP 工具不可用 / Server 连接失败 | 降级使用全局 CLI `ai-report`，命令与 MCP 工具一一对应（见 [CLI Mode](#cli-mode)） |
 | `ai-report: command not found` | 执行 `npm install -g ai-report-tool`（需要 Node ≥ 18） |
 | npm 安装超时 / 网络失败 | 使用国内镜像：`npm install -g ai-report-tool --registry=https://registry.npmmirror.com`，或检查代理设置后重试 |
-| 报错 `REPORT_EXISTS` | 目标周期已有报告，改用 `update_report` |
+| 报错 `REPORT_EXISTS` | 目标周期已有报告（错误里附带 `existingReport.updatedAt`，可直接告知用户上次保存时间），改用 `update_report` |
 | 报错 `REPORT_NOT_FOUND` | 目标周期还没有报告。若是更新请求，询问用户是否新建（见 Update 一节）而非直接报错；用户确认后改用 `create_report` |
 | 报错 `VALIDATION_ERROR` | 按报错信息检查参数：type 必须是四种类型之一，date 必须是真实存在的 `YYYY-MM-DD` 日期 |
 | 存储目录异常 / 权限错误 | 检查 `~/.ai-report-tool/` 是否可写；或设置 `AI_REPORT_STORAGE_DIR` 指向可写目录 |

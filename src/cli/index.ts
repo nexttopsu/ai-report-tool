@@ -32,11 +32,11 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 const HELP = `ai-report — AI 报告工具命令行 v${pkg.version}
 
 用法：
-  ai-report today                        查看今天的日报
-  ai-report week                         查看本周的周报
+  ai-report today [--raw]                查看今天的日报（--raw 只输出正文）
+  ai-report week [--raw]                 查看本周的周报（--raw 只输出正文）
   ai-report week-dailies                 查看本周的所有日报
-  ai-report month                        查看本月的月报
-  ai-report year                         查看今年的年报
+  ai-report month [--raw]                查看本月的月报（--raw 只输出正文）
+  ai-report year [--raw]                 查看今年的年报（--raw 只输出正文）
 
   ai-report create <type> <内容> [选项]   创建报告（type: daily / weekly / monthly / yearly）
       选项：
@@ -48,6 +48,7 @@ const HELP = `ai-report — AI 报告工具命令行 v${pkg.version}
         --from <YYYY-MM-DD>    起始日期（含）
         --to <YYYY-MM-DD>      结束日期（含）
         --keyword <关键字>     按正文关键字过滤（也支持 --keyword=关键字）
+        --limit <N>            最多返回最近 N 条（也支持 --limit=N）
 
   ai-report --help | help                显示本帮助
   ai-report --version | version          显示版本号
@@ -114,8 +115,9 @@ const manager = new ReportManager(
   process.env.AI_REPORT_STORAGE_DIR ? { storageDir: process.env.AI_REPORT_STORAGE_DIR } : {},
 )
 
-/** today / week / month / year：查看当前周期报告（直接映射 Core 快捷方法） */
-async function showCurrent(type: ReportType): Promise<void> {
+/** today / week / month / year：查看当前周期报告（直接映射 Core 快捷方法）。
+ *  --raw 只输出正文，适合管道场景（如 ai-report today --raw | pbcopy）。 */
+async function showCurrent(type: ReportType, raw: boolean): Promise<void> {
   const currentGetters: Record<ReportType, () => Promise<Report | null>> = {
     daily: () => manager.getToday(),
     weekly: () => manager.getThisWeek(),
@@ -126,6 +128,10 @@ async function showCurrent(type: ReportType): Promise<void> {
   if (!report) {
     const when = { daily: '今天', weekly: '本周', monthly: '本月', yearly: '今年' }[type]
     console.log(`${when}还没有${TYPE_NAMES[type]}。`)
+    return
+  }
+  if (raw) {
+    console.log(report.content)
     return
   }
   printReport(report)
@@ -213,9 +219,14 @@ async function cmdDelete(args: string[]): Promise<void> {
   }
 }
 
-/** 解析 query 的 --from / --to / --keyword 选项（支持空格分隔与 = 连写） */
-function parseQueryOptions(rest: string[]): { from?: string; to?: string; keyword?: string } {
-  const options: { from?: string; to?: string; keyword?: string } = {}
+/** 解析 query 的 --from / --to / --keyword / --limit 选项（支持空格分隔与 = 连写） */
+function parseQueryOptions(rest: string[]): {
+  from?: string
+  to?: string
+  keyword?: string
+  limit?: number
+} {
+  const options: { from?: string; to?: string; keyword?: string; limit?: number } = {}
   for (let i = 0; i < rest.length; i++) {
     const arg = rest[i]
     const eq = arg.indexOf('=')
@@ -232,6 +243,12 @@ function parseQueryOptions(rest: string[]): { from?: string; to?: string; keywor
         usageError('--keyword 需要一个关键字，如 --keyword "告警"')
       }
       options.keyword = value
+    } else if (name === '--limit') {
+      const n = Number(value)
+      if (!Number.isInteger(n) || n < 1) {
+        usageError('--limit 需要一个正整数，如 --limit 10')
+      }
+      options.limit = n
     } else {
       usageError(`未知的查询选项: ${JSON.stringify(arg)}`)
     }
@@ -242,13 +259,24 @@ function parseQueryOptions(rest: string[]): { from?: string; to?: string; keywor
 async function cmdQuery(args: string[]): Promise<void> {
   const type = parseType(args[0])
   const options = parseQueryOptions(args.slice(1))
-  const reports = await manager.query(type, options)
+  const all = await manager.query(type, options)
+  // limit 语义：取最近的 N 条（Core 已处理），allCount 用于提示还有更早的历史
+  const allCount = options.limit !== undefined ? (await manager.query(type, {
+    from: options.from,
+    to: options.to,
+    keyword: options.keyword,
+  })).length : all.length
+  const reports = all
 
   if (reports.length === 0) {
     console.log(`没有找到符合条件的${TYPE_NAMES[type]}。`)
     return
   }
-  console.log(`共 ${reports.length} 条${TYPE_NAMES[type]}：`)
+  if (options.limit !== undefined && allCount > reports.length) {
+    console.log(`共 ${allCount} 条${TYPE_NAMES[type]}，显示最近的 ${reports.length} 条：`)
+  } else {
+    console.log(`共 ${reports.length} 条${TYPE_NAMES[type]}：`)
+  }
   console.log(SEP)
   for (const report of reports) {
     console.log(`◆ ${report.period}`)
@@ -278,19 +306,19 @@ async function run(): Promise<void> {
       return
 
     case 'today':
-      await showCurrent('daily')
+      await showCurrent('daily', args[0] === '--raw')
       return
     case 'week':
-      await showCurrent('weekly')
+      await showCurrent('weekly', args[0] === '--raw')
       return
     case 'week-dailies':
       await showWeekDailies()
       return
     case 'month':
-      await showCurrent('monthly')
+      await showCurrent('monthly', args[0] === '--raw')
       return
     case 'year':
-      await showCurrent('yearly')
+      await showCurrent('yearly', args[0] === '--raw')
       return
 
     case 'create':

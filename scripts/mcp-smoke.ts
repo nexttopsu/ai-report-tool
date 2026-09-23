@@ -106,7 +106,7 @@ async function main(): Promise<void> {
     `period=${r.body?.report?.period}`,
   )
 
-  // --- 3. 重复创建 → REPORT_EXISTS ---
+  // --- 3. 重复创建 → REPORT_EXISTS（附带已有报告元信息） ---
   r = await callTool(client, 'create_report', {
     type: 'daily',
     date: todayStr,
@@ -116,6 +116,11 @@ async function main(): Promise<void> {
     'create_report 重复创建 → REPORT_EXISTS（isError=true）',
     r.isError && r.body?.error?.code === 'REPORT_EXISTS',
     r.body?.error?.message,
+  )
+  step(
+    'REPORT_EXISTS 附带 existingReport.updatedAt',
+    r.body?.error?.existingReport?.period === todayStr && typeof r.body?.error?.existingReport?.updatedAt === 'string',
+    `updatedAt=${r.body?.error?.existingReport?.updatedAt}`,
   )
 
   // --- 4. update_report ---
@@ -189,6 +194,18 @@ async function main(): Promise<void> {
   r = await callTool(client, 'query_reports', { type: 'daily', keyword: '绝不存在的关键字' })
   step('query_reports 无命中 count=0', r.body?.success === true && r.body?.count === 0)
 
+  // --- 9.5 query_reports limit 截断 ---
+  r = await callTool(client, 'query_reports', { type: 'daily', limit: 1 })
+  step(
+    'query_reports limit 截断（total>count, truncated=true）',
+    r.body?.success === true && r.body?.total === 1 && r.body?.count === 1 && r.body?.truncated === false,
+    `total=${r.body?.total}, count=${r.body?.count}`,
+  )
+  step(
+    'query_reports 返回体含 total 字段',
+    typeof r.body?.total === 'number',
+  )
+
   // --- 9. get_week_dailies（本周日报列表） ---
   r = await callTool(client, 'get_week_dailies')
   step(
@@ -205,6 +222,14 @@ async function main(): Promise<void> {
     (x: any) => x.period >= r.body.range.from && x.period <= r.body.range.to,
   )
   step('get_week_dailies 全部结果都在本周区间内', inRange)
+  step(
+    'get_week_dailies 返回 missingDates 数组（周一至今缺勤日期）',
+    Array.isArray(r.body?.missingDates) &&
+      r.body.missingDates.every(
+        (d: string) => d >= r.body.range.from && d <= r.body.range.to,
+      ),
+    `missingDates=${JSON.stringify(r.body?.missingDates)}`,
+  )
 
   // --- 10. 非法参数 → VALIDATION_ERROR（schema 层） ---
   r = await callTool(client, 'create_report', {
@@ -225,6 +250,10 @@ async function main(): Promise<void> {
   step(
     'delete_report 成功',
     r.body?.success === true && r.body?.action === 'deleted' && r.body?.deleted === true,
+  )
+  step(
+    'delete_report 返回 deletedReport（被删报告正文）',
+    r.body?.deletedReport?.period === todayStr && r.body?.deletedReport?.content?.includes('冒烟'),
   )
   r = await callTool(client, 'delete_report', { type: 'daily', date: todayStr })
   step(

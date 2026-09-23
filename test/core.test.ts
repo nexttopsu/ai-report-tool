@@ -159,6 +159,24 @@ test('query: 周报区间过滤按所属周折算', async () => {
   )
 })
 
+test('query: limit 取最近的 N 份且保持升序，非法 limit 被拒绝', async () => {
+  for (let d = 18; d <= 22; d++) {
+    await manager.create('daily', `2026-09-${d}`, `D${d}`)
+  }
+  const latest3 = await manager.query('daily', { limit: 3 })
+  assert.deepEqual(
+    latest3.map((r) => r.period),
+    ['2026-09-20', '2026-09-21', '2026-09-22'], // 最近的 3 份（20/21/22），升序
+  )
+  const all = await manager.query('daily')
+  assert.deepEqual(
+    all.map((r) => r.period),
+    ['2026-09-18', '2026-09-19', '2026-09-20', '2026-09-21', '2026-09-22'],
+  )
+  await assert.rejects(manager.query('daily', { limit: 0 }), ValidationError)
+  await assert.rejects(manager.query('daily', { limit: 1.5 }), ValidationError)
+})
+
 // ---------- 导出 / 恢复（闭环） ----------
 
 test('export + restore: 单文件导出，删除后可完整恢复', async () => {
