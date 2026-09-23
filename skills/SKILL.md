@@ -4,7 +4,7 @@ slug: ai-report-tool
 displayName: AI Report Tool
 name_en: AI Report Tool
 name_zh: AI 报告工具
-version: 0.3.8
+version: 0.3.10
 description: Manage daily, weekly, monthly, and yearly work reports via the ai-report CLI or the ai-report-mcp MCP server. Use when the user asks to write, save, view, update, delete, or search work reports (日报/周报/月报/年报), or to generate summaries from historical reports.
 description_en: Manage daily, weekly, monthly, and yearly work reports via the ai-report CLI or the ai-report-mcp MCP server. Use when the user asks to write, save, view, update, delete, or search work reports (日报/周报/月报/年报), or to generate summaries from historical reports.
 description_zh: 通过 ai-report 命令行或 ai-report-mcp MCP 服务管理日报、周报、月报、年报。当用户要求写/保存/查看/修改/删除/查询工作报告，或根据历史记录生成总结时使用。
@@ -152,19 +152,46 @@ Agent 执行 `get_today_report` → 今天已有日报 → 用户明确要求更
 流程：
 
 ```text
-get_week_report（已存在则参考 Update 一节）
-      ↓
 get_week_dailies            ← 一次调用拿全本周日报（无需手动计算日期区间）
       ↓
-count = 0 → 告知本周还没有日报，请用户补充素材（不要虚构）
+count = 0 → 告知本周还没有日报，请用户补充素材（不要虚构），流程结束
 count > 0 → 按天阅读各日报正文，归纳整理
       ↓
-missingDates 非空 → 提醒用户"某天日报还没写，要补吗？"
+missingDates 非空 → 提醒用户"某天日报还没写，要补吗？"（不阻塞，可继续）
       ↓
-生成周报草稿，建议先向用户展示确认
+生成新周报草稿
       ↓
-确认后 create_report(type=weekly, date=今天, content=周报)
+get_week_report 检查本周是否已有周报
+      ↓
+┌─ 没有周报：直接向用户展示新周报草稿 → 确认后 create_report → 回复"周报已生成/保存"
+│
+└─ 已有周报：一次性展示两部分，让用户对比——
+   ① 旧周报（明确标注"当前已有周报"，注明保存日期即可，不带具体时间）
+   ② 新周报草稿（标注"基于本周日报新生成"）
+   → 询问"是否用新周报覆盖旧周报？"
+   → 确认后 update_report → 回复"周报已更新"
+   → 用户拒绝 → 保留旧周报，不做写操作
 ```
+
+**输出示例（已有周报时）**：
+
+```text
+基于本周日报生成了新的周报草稿：
+
+【当前已有周报】（09-22 保存）
+……旧周报正文……
+
+【新生成的周报】
+……新周报草稿……
+
+要用新的周报覆盖旧的吗？
+```
+
+注意：
+
+* 展示草稿与旧周报要**一次完成**，不要分多轮挤牙膏。
+* 调用工具的参数错误（如日期格式）在 Agent 侧自行修正后重试，**不要向用户展示报错原文和自我修正过程**（如"需要指定日期格式，让我查看正确的用法"这类独白）。
+* 用户确认覆盖用 `update_report`，不要 delete + create。
 
 **写上周/历史周报**：`create_report` 的 `date` 传上周任意一天（如上周一）即可，工具会自动折算到对应 ISO 周。同理月报传当月任意一天、年报传当年任意一天。
 
@@ -245,6 +272,10 @@ missingDates 非空 → 提醒用户"某天日报还没写，要补吗？"
 ## Response Style
 
 操作成功后简洁回复（如"今天的日报已经保存。"）。查询结果较多时，先告诉用户找到多少条，再展示相关内容。不要默认向用户展示 MCP Tool 调用过程或原始 JSON。
+
+**不暴露内部元数据**：展示报告内容时只呈现日期（period）与正文，**不要附上每条报告的更新时间（updatedAt）、创建时间（createdAt）等内部字段**——用户看日报列表不需要这些。仅在用户明确询问"什么时候写的/改的"时才提供。
+
+**不暴露过程噪音**：工具参数错误、报错原文、Agent 的自我修正独白（如"需要指定日期格式，让我查看正确的用法"）一律不要出现在回复中——自行修正后重试，只呈现最终结果。
 
 ---
 
