@@ -38,7 +38,9 @@ const HELP = `ai-report — AI 报告工具命令行 v${pkg.version}
   ai-report month                        查看本月的月报
   ai-report year                         查看今年的年报
 
-  ai-report create <type> <内容>         创建报告（type: daily / weekly / monthly / yearly）
+  ai-report create <type> <内容> [选项]   创建报告（type: daily / weekly / monthly / yearly）
+      选项：
+        --date <YYYY-MM-DD>    归属日期（缺省为今天；报告周期由该日期决定，可补写历史报告）
   ai-report update <type> <date> <内容>  更新指定日期的报告
   ai-report delete <type> <date>         删除指定日期的报告
   ai-report query <type> [选项]          查询报告列表
@@ -52,6 +54,7 @@ const HELP = `ai-report — AI 报告工具命令行 v${pkg.version}
 
 示例：
   ai-report create daily "今天完成了 MCP 集成"
+  ai-report create daily "补写昨天的日报" --date 2026-09-22
   ai-report update daily 2026-09-21 "修改后的报告内容"
   ai-report query daily --from 2026-09-01 --to 2026-09-30 --keyword "告警"
 
@@ -158,13 +161,33 @@ async function showWeekDailies(): Promise<void> {
   }
 }
 
+/**
+ * create：创建报告。内容参数中可混入 --date 选项指定归属日期（缺省今天），
+ * 报告周期由该日期决定（与 MCP create_report 对齐），支持补写历史报告。
+ * 目标周期已存在时仍抛 ReportExistsError，保持防误覆盖语义。
+ */
 async function cmdCreate(args: string[]): Promise<void> {
   const type = parseType(args[0])
-  const content = args.slice(1).join(' ').trim()
-  if (!content) {
-    usageError(`缺少报告内容。用法：ai-report create <type> <内容>`)
+  const rest = args.slice(1)
+  let date: Date | string = new Date() // 缺省为今天
+  const contentParts: string[] = []
+  for (let i = 0; i < rest.length; i++) {
+    const arg = rest[i]
+    const eq = arg.indexOf('=')
+    const hasEq = arg.startsWith('--') && eq > 2
+    const name = hasEq ? arg.slice(0, eq) : arg
+    const inlineValue = hasEq ? arg.slice(eq + 1) : undefined
+    if (name === '--date') {
+      date = parseDateArg(inlineValue ?? rest[++i], '--date')
+    } else {
+      contentParts.push(arg)
+    }
   }
-  const report = await manager.create(type, new Date(), content)
+  const content = contentParts.join(' ').trim()
+  if (!content) {
+    usageError(`缺少报告内容。用法：ai-report create <type> <内容> [--date <YYYY-MM-DD>]`)
+  }
+  const report = await manager.create(type, date, content)
   console.log(`已创建 ${report.period} 的${TYPE_NAMES[type]}。`)
 }
 

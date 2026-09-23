@@ -99,22 +99,25 @@ yearly
 | `get_week_dailies` | `ai-report week-dailies` |
 | `get_month_report` | `ai-report month` |
 | `get_year_report` | `ai-report year` |
-| `create_report` | `ai-report create <type> <内容>` |
+| `create_report` | `ai-report create <type> <内容> [--date <YYYY-MM-DD>]` |
 | `update_report` | `ai-report update <type> <date> <内容>` |
 | `delete_report` | `ai-report delete <type> <date>` |
 | `query_reports` | `ai-report query <type> [选项]` |
 
 `query` 选项：`--from <YYYY-MM-DD>`（起始，含）、`--to <YYYY-MM-DD>`（结束，含）、`--keyword <关键字>`（正文过滤）。
 
+`create` 的 `--date` 选项指定归属日期（缺省为今天），报告周期由该日期决定，支持补写历史报告；与 MCP `create_report` 的 `date` 参数对齐。同一周期已存在报告时仍会报错，应改用 update。
+
 示例：
 
 ```text
 ai-report create daily "今天完成了 MCP 集成"
+ai-report create daily "补写昨天的日报" --date 2026-09-22
 ai-report update daily 2026-09-21 "修改后的报告内容"
 ai-report query daily --from 2026-09-01 --to 2026-09-30 --keyword "告警"
 ```
 
-注意：CLI 的 `create` 只能保存**当天**的报告；需要补写指定日期时使用 MCP `create_report` 并传 `date`。
+注意：CLI 的 `create` 缺省只保存**当天**的报告，补写历史报告须显式传 `--date`。
 
 ---
 
@@ -420,7 +423,7 @@ delete_report
 
 * **仅本地单人使用**：数据保存在本机 `~/.ai-report-tool/`，不支持云端同步、多端共享或团队协作，无账号体系。
 * **删除不可恢复**：`delete_report` 是物理删除，无回收站。
-* **CLI create 仅限当天**：CLI 的 `create` 只保存当天报告；补写指定日期需用 MCP `create_report` 传 `date`。
+* **补写历史报告**：CLI `create` 需显式传 `--date`（缺省为今天）；MCP `create_report` 直接传 `date`。
 * **周报周期为 ISO 8601 周**：周一至周日；跨年周的归属按周四所在年份判定（如 2027-01-01 属于 2026-W53）。
 * **查询无分页**：`query_reports` 返回全部命中结果，超大范围查询应用 `from/to/keyword` 缩小范围。
 * **不生成内容**：本工具只负责存储和检索，报告内容由 Agent 基于真实上下文生成。
@@ -433,7 +436,7 @@ delete_report
 A：ISO 8601 周，周一为起点、周日为终点，period 格式 `YYYY-Www`。跨年时按该周周四所在的年份定周年份。
 
 **Q：忘了写昨天的日报，能补吗？**
-A：可以。用 MCP `create_report` 并传 `date=昨天的日期` 即可；注意 CLI 的 `create` 只能保存当天。
+A：可以。MCP 用 `create_report` 传 `date=昨天的日期`；CLI 用 `ai-report create daily "内容" --date YYYY-MM-DD`。目标周期已有报告时会报错，此时应改用 update。
 
 **Q：数据存在哪里？会不会丢？**
 A：全部在本机 `~/.ai-report-tool/` 下的纯文本 `.txt` 文件中，格式人类可读。工具本身没有云备份机制，可自行复制该目录备份。

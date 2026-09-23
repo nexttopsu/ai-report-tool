@@ -54,6 +54,11 @@ async function main(): Promise<void> {
   await client.connect(transport)
   console.log(`已连接 MCP Server（隔离存储: ${storageDir}）\n`)
 
+  // 动态日期：daily 相关步骤用"今天"，避免硬编码日期导致跨天运行失败
+  const today = new Date()
+  const pad = (n: number): string => String(n).padStart(2, '0')
+  const todayStr = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`
+
   // --- 工具发现 ---
   const { tools } = await client.listTools()
   const names = tools.map((t) => t.name).sort()
@@ -92,7 +97,7 @@ async function main(): Promise<void> {
   // --- 2. create_report ---
   r = await callTool(client, 'create_report', {
     type: 'daily',
-    date: '2026-09-21',
+    date: todayStr,
     content: 'MCP 协议层冒烟测试：创建日报',
   })
   step(
@@ -104,7 +109,7 @@ async function main(): Promise<void> {
   // --- 3. 重复创建 → REPORT_EXISTS ---
   r = await callTool(client, 'create_report', {
     type: 'daily',
-    date: '2026-09-21',
+    date: todayStr,
     content: '重复创建应失败',
   })
   step(
@@ -116,7 +121,7 @@ async function main(): Promise<void> {
   // --- 4. update_report ---
   r = await callTool(client, 'update_report', {
     type: 'daily',
-    date: '2026-09-21',
+    date: todayStr,
     content: '更新后的正文：MCP 冒烟测试通过',
   })
   step(
@@ -145,7 +150,7 @@ async function main(): Promise<void> {
   // --- 7. create weekly + get_week_report ---
   r = await callTool(client, 'create_report', {
     type: 'weekly',
-    date: '2026-09-21',
+    date: todayStr,
     content: '本周完成 MCP Server 接入',
   })
   const weeklyPeriod = r.body?.report?.period
@@ -173,8 +178,8 @@ async function main(): Promise<void> {
   step('query_reports 全量', r.body?.success === true && r.body?.count === 1, `count=${r.body?.count}`)
   r = await callTool(client, 'query_reports', {
     type: 'daily',
-    from: '2026-09-01',
-    to: '2026-09-30',
+    from: todayStr,
+    to: todayStr,
     keyword: '冒烟',
   })
   step(
@@ -204,7 +209,7 @@ async function main(): Promise<void> {
   // --- 10. 非法参数 → VALIDATION_ERROR（schema 层） ---
   r = await callTool(client, 'create_report', {
     type: 'quarterly',
-    date: '2026-09-21',
+    date: todayStr,
     content: 'x',
   })
   step('create_report 非法类型被 schema 拒绝', r.isError, r.body?.error?.message ?? r.body?._raw?.slice(0, 80))
@@ -216,12 +221,12 @@ async function main(): Promise<void> {
   step('create_report 非法日期格式被拒绝', r.isError)
 
   // --- 11. delete_report + 重复删除 ---
-  r = await callTool(client, 'delete_report', { type: 'daily', date: '2026-09-21' })
+  r = await callTool(client, 'delete_report', { type: 'daily', date: todayStr })
   step(
     'delete_report 成功',
     r.body?.success === true && r.body?.action === 'deleted' && r.body?.deleted === true,
   )
-  r = await callTool(client, 'delete_report', { type: 'daily', date: '2026-09-21' })
+  r = await callTool(client, 'delete_report', { type: 'daily', date: todayStr })
   step(
     'delete_report 不存在时 deleted=false（不报错）',
     r.body?.success === true && r.body?.deleted === false,
@@ -237,7 +242,7 @@ async function main(): Promise<void> {
   )
 
   // --- 清理测试周报（临时目录随脚本结束整体删除） ---
-  r = await callTool(client, 'delete_report', { type: 'weekly', date: '2026-09-21' })
+  r = await callTool(client, 'delete_report', { type: 'weekly', date: todayStr })
   step('清理测试周报', r.body?.deleted === true)
 
   await client.close()

@@ -87,6 +87,7 @@ $ ai-report today
 
 ```bash
 ai-report create daily "今天完成了 MCP 集成"
+ai-report create daily "补写昨天的日报" --date 2026-09-22   # 补写历史报告
 ai-report create weekly "本周完成了 CLI 开发"
 ai-report create monthly "本月完成了工具包开发"
 ai-report create yearly "年度目标"
@@ -95,7 +96,7 @@ ai-report update daily 2026-09-21 "修改后的报告内容"
 ai-report delete daily 2026-09-21
 ```
 
-`create` 以当前日期归属周期；同一周期重复 `create` 会报错（防误覆盖，请用 `update`），`delete` 不存在的报告只提示、不报错。
+`create` 以 `--date` 指定日期归属周期（缺省为今天），支持补写历史报告，与 MCP `create_report` 的 `date` 参数对齐；同一周期重复 `create` 会报错（防误覆盖，请用 `update`），`delete` 不存在的报告只提示、不报错。
 
 ### 查询报告
 
