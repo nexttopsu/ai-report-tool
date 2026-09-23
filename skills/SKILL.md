@@ -4,7 +4,7 @@ slug: ai-report-tool
 displayName: AI Report Tool
 name_en: AI Report Tool
 name_zh: AI 报告工具
-version: 0.3.2
+version: 0.3.3
 description: Manage daily, weekly, monthly, and yearly work reports via the ai-report CLI or the ai-report-mcp MCP server. Use when the user asks to write, save, view, update, delete, or search work reports (日报/周报/月报/年报), or to generate summaries from historical reports.
 description_en: Manage daily, weekly, monthly, and yearly work reports via the ai-report CLI or the ai-report-mcp MCP server. Use when the user asks to write, save, view, update, delete, or search work reports (日报/周报/月报/年报), or to generate summaries from historical reports.
 description_zh: 通过 ai-report 命令行或 ai-report-mcp MCP 服务管理日报、周报、月报、年报。当用户要求写/保存/查看/修改/删除/查询工作报告，或根据历史记录生成总结时使用。
@@ -134,10 +134,29 @@ get_today_report
       ↓
 判断是否存在
       ↓
-不存在 → 根据当前上下文生成 → create_report
+不存在 → 生成内容（见下方分支）→ create_report
 存在   → 用户要求修改 → update_report
 存在   → 未要求修改 → 告知已有报告
 ```
+
+**生成内容的两种分支**：
+
+```text
+用户消息中的内容形态
+      ↓
+用户已给出完整正文，只要求保存/更新
+（如"把我说的这些存成今天的日报"、"帮我更新日报：……"）
+      ↓
+→ 原样作为 content 保存，不改写、不重新归纳
+→ 仅当明显缺格式（如长段无换行）时可做最小排版规整
+      ↓
+用户只描述了做了哪些工作
+（如"帮我写日报，今天修了个 bug"）
+      ↓
+→ Agent 整理归纳生成草稿 → 向用户展示确认 → 确认后保存
+```
+
+判断依据是用户意图：明确给出成稿就用原文，只给素材才生成。拿不准时先展示准备保存的正文，向用户确认。
 
 日报内容应基于用户实际完成的工作进行整理，不要虚构。
 
@@ -165,6 +184,20 @@ Agent 执行 `get_today_report` → 今天还没有日报 → 整理生成草稿
 1. 修复登录超时 bug
 2. MCP server 错误码统一为结构化格式（success/error.code/message）
 3. Review 小王的 PR
+```
+
+### 用户自带成稿的示例
+
+用户输入（已给出完整正文，只要求更新）：
+
+> 帮我更新今天的日报：1）完成登录模块联调 2）修复 3 个测试用例失败 3）明天开始做权限模块
+
+Agent 执行 `get_today_report` → 今天已有日报 → 用户明确要求更新且正文已完整 → `update_report(type=daily, date=2026-09-23, content=...)`，正文**原样使用**用户给的清单，不重新归纳。
+
+最终回复：
+
+```text
+今天的日报已经更新。
 ```
 
 ---
@@ -278,18 +311,34 @@ query_reports(
 
 用户明确要求：
 
-* 修改日报
-* 更新日报
-* 重新整理日报
+* 修改日报/周报/月报/年报
+* 更新日报/周报/月报/年报
+* 重新整理报告
 * 把日报改成……
+* 帮我把这些内容存成/更新到报告
 
-使用：
+流程：
 
 ```text
-update_report
+先查看目标周期是否已有报告（get_*_report / query_reports）
+      ↓
+已存在 → update_report
+      ↓
+不存在 → 不要直接报错终止
+      ↓
+向用户说明该周期还没有报告，并询问是否新建，例如：
+  "2026-09-22 还没有日报，要为你新建一份吗？"
+      ↓
+用户确认 → create_report（正文按内容来源分支处理）
+用户拒绝 → 不做任何写操作
 ```
 
-注意：`content` 是**完整的新正文**，不是增量补丁。
+注意：
+
+* `content` 是**完整的新正文**，不是增量补丁。
+* 用户消息中已带完整正文时，**原样作为 content** 传入，不要重新归纳改写（见 Daily Report 的内容分支）。
+* 用户只给了修改方向（如"把第二条展开写详细点"），才由 Agent 读取现有报告、按要求调整后生成新正文。
+* 若直接调用 `update_report` 收到 `REPORT_NOT_FOUND`，同样按上述方式询问用户，不要把错误原样抛给用户。
 
 不要通过 `delete_report + create_report` 实现修改。
 
@@ -311,6 +360,7 @@ delete_report
 
 生成报告时：
 
+* 用户已给出完整正文时，原样保存，不要重新归纳改写
 * 只使用用户提供或上下文中真实存在的信息
 * 合理归纳，但不要编造
 * 内容简洁、专业
@@ -411,7 +461,7 @@ delete_report
 | `ai-report: command not found` | 执行 `npm install -g ai-report-tool`（需要 Node ≥ 18） |
 | npm 安装超时 / 网络失败 | 使用国内镜像：`npm install -g ai-report-tool --registry=https://registry.npmmirror.com`，或检查代理设置后重试 |
 | 报错 `REPORT_EXISTS` | 目标周期已有报告，改用 `update_report` |
-| 报错 `REPORT_NOT_FOUND` | 目标周期还没有报告，改用 `create_report` |
+| 报错 `REPORT_NOT_FOUND` | 目标周期还没有报告。若是更新请求，询问用户是否新建（见 Update 一节）而非直接报错；用户确认后改用 `create_report` |
 | 报错 `VALIDATION_ERROR` | 按报错信息检查参数：type 必须是四种类型之一，date 必须是真实存在的 `YYYY-MM-DD` 日期 |
 | 存储目录异常 / 权限错误 | 检查 `~/.ai-report-tool/` 是否可写；或设置 `AI_REPORT_STORAGE_DIR` 指向可写目录 |
 
@@ -464,7 +514,8 @@ A：不能。删除是物理删除且无回收站，所以删除前必须与用�
    ├── 本周日报 → get_week_dailies
    │
    ├── 创建
-   │    └── 先检查 → create_report
+   │    ├── 用户已带完整正文 → 原样保存 → create_report
+   │    └── 只给素材 → 整理生成并确认 → create_report
    │
    ├── 修改 → update_report
    │
