@@ -116,6 +116,18 @@ ai-report query weekly
 
 无命中时提示：`没有找到符合条件的日报。`
 
+### 备份与恢复
+
+```bash
+ai-report export backup.json        # 全量备份到指定文件
+ai-report export                    # 导出到默认位置 ~/.ai-report-tool/exports/
+ai-report export work.json --type daily --from 2026-09-01   # 只导出 9 月的日报
+ai-report restore backup.json       # 恢复（已存在的报告跳过）
+ai-report restore backup.json --overwrite   # 强制覆盖已存在的报告
+```
+
+导出为单个 JSON 文件（`{ version, exportedAt, reports[] }`），适合换电脑迁移或定期备份；恢复前会整体校验文件结构，非法文件不会写盘。
+
 ### 其他
 
 ```bash

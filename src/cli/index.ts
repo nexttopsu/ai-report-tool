@@ -50,6 +50,17 @@ const HELP = `ai-report — AI 报告工具命令行 v${pkg.version}
         --keyword <关键字>     按正文关键字过滤（也支持 --keyword=关键字）
         --limit <N>            最多返回最近 N 条（也支持 --limit=N）
 
+  ai-report export [文件路径] [选项]      导出报告为单个 JSON 文件（备份/迁移）
+      选项：
+        --type <type>          只导出指定类型（可重复，如 --type daily --type weekly）
+        --from <YYYY-MM-DD>    起始日期（含）
+        --to <YYYY-MM-DD>      结束日期（含）
+        --keyword <关键字>     按正文关键字过滤
+        （缺省文件路径为 ~/.ai-report-tool/exports/ai-report-export-<时间戳>.json）
+  ai-report restore <文件> [选项]         从导出文件恢复报告
+      选项：
+        --overwrite            覆盖已存在的同名报告（缺省跳过）
+
   ai-report --help | help                显示本帮助
   ai-report --version | version          显示版本号
 
@@ -58,6 +69,9 @@ const HELP = `ai-report — AI 报告工具命令行 v${pkg.version}
   ai-report create daily "补写昨天的日报" --date 2026-09-22
   ai-report update daily 2026-09-21 "修改后的报告内容"
   ai-report query daily --from 2026-09-01 --to 2026-09-30 --keyword "告警"
+  ai-report export backup.json           # 全量备份
+  ai-report export work.json --type daily --from 2026-09-01
+  ai-report restore backup.json          # 恢复（已存在的跳过）
 
 报告默认存储在 ~/.ai-report-tool/ 目录下。`
 
@@ -289,6 +303,59 @@ async function cmdQuery(args: string[]): Promise<void> {
 
 // ---------- 入口与分发 ----------
 
+/** export：把报告导出为单个 JSON 文件（备份/迁移）。文件路径为第一个非 -- 开头参数。 */
+async function cmdExport(args: string[]): Promise<void> {
+  let outputFile: string | undefined
+  const options: { types?: ReportType[]; from?: string; to?: string; keyword?: string } = {}
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i]
+    if (!arg.startsWith('--')) {
+      if (outputFile !== undefined) usageError(`多余的参数: ${JSON.stringify(arg)}`)
+      outputFile = arg
+      continue
+    }
+    const eq = arg.indexOf('=')
+    const hasEq = eq > 2
+    const name = hasEq ? arg.slice(0, eq) : arg
+    const value = hasEq ? arg.slice(eq + 1) : args[++i]
+    if (name === '--type') {
+      if (value === undefined) usageError('--type 需要一个类型，如 --type daily')
+      ;(options.types ??= []).push(parseType(value))
+    } else if (name === '--from') {
+      options.from = parseDateArg(value, '--from')
+    } else if (name === '--to') {
+      options.to = parseDateArg(value, '--to')
+    } else if (name === '--keyword') {
+      if (value === undefined || value === '') usageError('--keyword 需要一个关键字')
+      options.keyword = value
+    } else {
+      usageError(`未知的导出选项: ${JSON.stringify(arg)}`)
+    }
+  }
+  const result = await manager.export({ ...options, outputFile })
+  console.log(`已导出 ${result.count} 份报告 → ${result.filePath}`)
+}
+
+/** restore：从 export 生成的 JSON 文件恢复报告。缺省跳过已存在，--overwrite 覆盖。 */
+async function cmdRestore(args: string[]): Promise<void> {
+  let file: string | undefined
+  let overwrite = false
+  for (const arg of args) {
+    if (arg === '--overwrite') {
+      overwrite = true
+    } else if (!arg.startsWith('--')) {
+      if (file !== undefined) usageError(`多余的参数: ${JSON.stringify(arg)}`)
+      file = arg
+    } else {
+      usageError(`未知的恢复选项: ${JSON.stringify(arg)}`)
+    }
+  }
+  if (!file) usageError('缺少导出文件路径。用法：ai-report restore <文件> [--overwrite]')
+  const result = await manager.restore(file, { overwrite })
+  const skippedHint = result.skipped > 0 ? `，跳过已存在 ${result.skipped} 份（用 --overwrite 覆盖）` : ''
+  console.log(`已恢复 ${result.restored} 份报告${skippedHint}。`)
+}
+
 async function run(): Promise<void> {
   const argv = process.argv.slice(2)
   const command = argv[0]
@@ -335,6 +402,14 @@ async function run(): Promise<void> {
 
     case 'query':
       await cmdQuery(args)
+      return
+
+    case 'export':
+      await cmdExport(args)
+      return
+
+    case 'restore':
+      await cmdRestore(args)
       return
 
     case undefined:

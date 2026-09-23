@@ -4,7 +4,7 @@ slug: ai-report-tool
 displayName: AI Report Tool
 name_en: AI Report Tool
 name_zh: AI 报告工具
-version: 0.3.4
+version: 0.3.5
 description: Manage daily, weekly, monthly, and yearly work reports via the ai-report CLI or the ai-report-mcp MCP server. Use when the user asks to write, save, view, update, delete, or search work reports (日报/周报/月报/年报), or to generate summaries from historical reports.
 description_en: Manage daily, weekly, monthly, and yearly work reports via the ai-report CLI or the ai-report-mcp MCP server. Use when the user asks to write, save, view, update, delete, or search work reports (日报/周报/月报/年报), or to generate summaries from historical reports.
 description_zh: 通过 ai-report 命令行或 ai-report-mcp MCP 服务管理日报、周报、月报、年报。当用户要求写/保存/查看/修改/删除/查询工作报告，或根据历史记录生成总结时使用。
@@ -103,10 +103,13 @@ yearly
 | `update_report` | `ai-report update <type> <date> <内容>` |
 | `delete_report` | `ai-report delete <type> <date>` |
 | `query_reports` | `ai-report query <type> [选项]` |
+| （无对应 MCP 工具） | `ai-report export [文件] [选项]` / `ai-report restore <文件> [--overwrite]`（备份与恢复，见下） |
 
 `query` 选项：`--from <YYYY-MM-DD>`（起始，含）、`--to <YYYY-MM-DD>`（结束，含）、`--keyword <关键字>`（正文过滤）、`--limit <N>`（最多返回最近 N 条）。
 
 `--raw` 只输出报告正文（不带类型/时间戳头部），适合管道场景（如复制正文）。
+
+**备份与恢复**（仅 CLI，MCP 未暴露）：`ai-report export [文件]`（可加 `--type/--from/--to/--keyword` 过滤）导出为单个 JSON；`ai-report restore <文件>` 恢复（默认跳过已存在，`--overwrite` 覆盖）。用户要备份/迁移数据时，指引其使用这两条命令。
 
 `create` 的 `--date` 选项指定归属日期（缺省为今天），报告周期由该日期决定，支持补写历史报告；与 MCP `create_report` 的 `date` 参数对齐。同一周期已存在报告时仍会报错，应改用 update。
 
@@ -498,7 +501,7 @@ A：ISO 8601 周，周一为起点、周日为终点，period 格式 `YYYY-Www`�
 A：可以。MCP 用 `create_report` 传 `date=昨天的日期`；CLI 用 `ai-report create daily "内容" --date YYYY-MM-DD`。目标周期已有报告时会报错，此时应改用 update。
 
 **Q：数据存在哪里？会不会丢？**
-A：全部在本机 `~/.ai-report-tool/` 下的纯文本 `.txt` 文件中，格式人类可读。工具本身没有云备份机制，可自行复制该目录备份。
+A：全部在本机 `~/.ai-report-tool/` 下的纯文本 `.txt` 文件中，格式人类可读。备份用 `ai-report export backup.json`（单个 JSON 文件，可定期备份或迁移到新电脑），恢复用 `ai-report restore backup.json`；也可直接复制整个目录。
 
 **Q：不注册 MCP Server，只用命令行可以吗？**
 A：可以。`ai-report` CLI 提供全部能力，与 MCP 工具一一对应（见 [CLI Mode](#cli-mode)）。
