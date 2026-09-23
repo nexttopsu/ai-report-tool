@@ -6,7 +6,7 @@ AI 报告工具核心库（TypeScript / Node.js ≥ 18，零运行时依赖）�
 
 ```bash
 npm install ai-report-tool        # 仅 dev 依赖（typescript / @types/node）
-npm test           # 编译 + 运行 23 个单元测试
+npm test           # 运行 24 个单元测试
 npm run build      # 产出 dist/
 ```
 
@@ -172,7 +172,7 @@ npm install -g ai-report-tool
 }
 ```
 
-### 提供的 8 个 Tools
+### 提供的 9 个 Tools
 
 | Tool | 参数 | 对应 Core API |
 | --- | --- | --- |
@@ -217,7 +217,7 @@ npm install -g ai-report-tool
 
 ```bash
 npm run build      # 产出 dist/mcp/server.js（SDK 已打包，单文件可直接执行）
-npm run test:mcp   # 用官方 SDK Client 走 stdio 冒烟测试 8 个 Tool（23 项检查）
+npm run test:mcp   # 用官方 SDK Client 走 stdio 冒烟测试 9 个 Tool（30 项检查）
 ```
 
 ## 存储结构（文件夹 + txt，方便人工查找）

@@ -1,5 +1,10 @@
 # 更新日志
 
+## v0.3.6
+
+- SKILL.md 拆分：主文件 542→264 行，CLI/故障处理/FAQ 细节移入 references/ 按需加载
+- FAQ 新增"写上周报告日期怎么传"问答；missingDates 提醒并入周报主流程
+
 ## v0.3.5
 
 - 新增 `ai-report export [文件] [--type/--from/--to/--keyword]`：备份/迁移报告为单个 JSON，支持过滤
