@@ -4,6 +4,7 @@
 | --- | --- |
 | MCP 工具不可用 / Server 连接失败 | 降级使用全局 CLI `ai-report`，命令与 MCP 工具一一对应（见 references/cli.md） |
 | `ai-report: command not found` | 执行 `npm install -g ai-report-tool`（需要 Node ≥ 18） |
+| 本机版本落后于 npm 最新版 | 首次使用本 Skill 时检查（`ai-report version` 对比 `npm view ai-report-tool version`，见 SKILL.md 版本检查），落后则提醒 `npm install -g ai-report-tool@latest` 并重启 MCP Client |
 | npm 安装超时 / 网络失败 | 使用国内镜像：`npm install -g ai-report-tool --registry=https://registry.npmmirror.com`，或检查代理设置后重试 |
 | 报错 `REPORT_EXISTS` | 目标周期已有报告（错误里附带 `existingReport.updatedAt`，可直接告知用户上次保存时间），改用 `update_report` |
 | 报错 `REPORT_NOT_FOUND` | 目标周期还没有报告。若是更新请求，询问用户是否新建（见 SKILL.md Update 一节）而非直接报错；用户确认后改用 `create_report` |

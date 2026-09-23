@@ -4,7 +4,7 @@ slug: ai-report-tool
 displayName: AI Report Tool
 name_en: AI Report Tool
 name_zh: AI 报告工具
-version: 0.3.6
+version: 0.3.7
 description: Manage daily, weekly, monthly, and yearly work reports via the ai-report CLI or the ai-report-mcp MCP server. Use when the user asks to write, save, view, update, delete, or search work reports (日报/周报/月报/年报), or to generate summaries from historical reports.
 description_en: Manage daily, weekly, monthly, and yearly work reports via the ai-report CLI or the ai-report-mcp MCP server. Use when the user asks to write, save, view, update, delete, or search work reports (日报/周报/月报/年报), or to generate summaries from historical reports.
 description_zh: 通过 ai-report 命令行或 ai-report-mcp MCP 服务管理日报、周报、月报、年报。当用户要求写/保存/查看/修改/删除/查询工作报告，或根据历史记录生成总结时使用。
@@ -21,6 +21,19 @@ user-invocable: true
 用于管理日报、周报、月报、年报。
 
 **前置条件**：已安装 ai-report-tool（`npm install -g ai-report-tool`，需要 Node ≥ 18），并将 `ai-report-mcp` 注册为 MCP Server；未注册 MCP 时可退回全局 CLI `ai-report`（命令一一对应，见 [references/cli.md](references/cli.md)）。
+
+**版本检查**：首次使用本 Skill 时（尤其用户刚通过 skillhub 安装技能），检查用户本机 npm 包版本是否为最新：
+
+```text
+ai-report version                      ← 本机已装版本（若命令不存在则未安装，见前置条件）
+npm view ai-report-tool version        ← npm 上的最新版本
+```
+
+本机版本 < 最新版本时，提醒用户升级：
+
+> 检测到 ai-report-tool v0.3.1，最新版本是 v0.3.6，建议升级：npm install -g ai-report-tool@latest
+
+升级后 MCP Client 需重启（MCP Server 进程在安装时加载，旧进程不会自动切到新版本）。版本相同或查询失败（网络问题）则静默跳过，不要阻塞正常报告操作。
 
 **详细参考**（按需读取）：
 
