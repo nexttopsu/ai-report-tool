@@ -4,7 +4,7 @@ slug: ai-report-tool
 displayName: AI Report Tool
 name_en: AI Report Tool
 name_zh: AI 报告工具
-version: 0.3.7
+version: 0.3.8
 description: Manage daily, weekly, monthly, and yearly work reports via the ai-report CLI or the ai-report-mcp MCP server. Use when the user asks to write, save, view, update, delete, or search work reports (日报/周报/月报/年报), or to generate summaries from historical reports.
 description_en: Manage daily, weekly, monthly, and yearly work reports via the ai-report CLI or the ai-report-mcp MCP server. Use when the user asks to write, save, view, update, delete, or search work reports (日报/周报/月报/年报), or to generate summaries from historical reports.
 description_zh: 通过 ai-report 命令行或 ai-report-mcp MCP 服务管理日报、周报、月报、年报。当用户要求写/保存/查看/修改/删除/查询工作报告，或根据历史记录生成总结时使用。
@@ -70,11 +70,18 @@ npm view ai-report-tool version        ← npm 上的最新版本
 
 **查看**：`get_today_report` / `get_week_report` / `get_month_report` / `get_year_report`
 
-**本周日报汇总**：`get_week_dailies`（返回本周一至周日的全部日报，带 range 区间与 missingDates 缺勤日期）
+**本周日报列表**：`get_week_dailies`（返回本周一至周日的全部日报，带 range 区间与 missingDates 缺勤日期）
 
 **操作**：`create_report` / `update_report` / `delete_report` / `query_reports`
 
 `type`：`daily` / `weekly` / `monthly` / `yearly`
+
+**易混警告——"本周的日报" ≠ "本周的周报"**：
+
+* 用户说"本周的日报 / 这周的日报 / 这周每天做了什么" → **`get_week_dailies`**（本周日报列表），不是 `get_week_report`
+* 用户说"本周的周报 / 本周总结 / 这周的周报" → **`get_week_report`**（周报单份）
+
+判定看"日报/周报"这个关键词，不要因为"本周"就联想到周报。
 
 `create_report / update_report / delete_report` 均接受 `date` 参数（`YYYY-MM-DD`）。报告归属周期由该日期决定，例如周报会归到该日期所在的 ISO 周——写本周周报传今天日期即可，无需计算周号。
 
@@ -139,6 +146,8 @@ Agent 执行 `get_today_report` → 今天已有日报 → 用户明确要求更
 
 > 帮我写本周的周报
 > 根据这周的日报汇总一份周报
+
+**先消歧**：用户说"查看本周的日报"是要日报列表，用 `get_week_dailies` 直接返回，不要进入本节写周报的流程；只有明确要"周报/本周总结"才继续。
 
 流程：
 
@@ -258,7 +267,7 @@ missingDates 非空 → 提醒用户"某天日报还没写，要补吗？"
    │
    ├── 查询 → query_reports
    │
-   ├── 本周日报 → get_week_dailies
+   ├── 本周日报 → get_week_dailies（"本周的日报"是日报列表，不是周报）
    │
    ├── 创建
    │    ├── 用户已带完整正文 → 原样保存 → create_report

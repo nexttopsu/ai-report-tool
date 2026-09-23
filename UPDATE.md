@@ -1,5 +1,14 @@
 # 更新日志
 
+## v0.3.8
+
+- 修复触发歧义："本周的日报"现正确路由到 get_week_dailies（日报列表），不再误返回周报
+- SKILL.md 三处消歧 + MCP 两个工具 description 互相排除
+
+## v0.3.7
+
+- SKILL 新增版本检查约定：首次使用时比对 npm latest，落后则提醒升级并重启 MCP Client
+
 ## v0.3.6
 
 - SKILL.md 拆分：主文件 542→264 行，CLI/故障处理/FAQ 细节移入 references/ 按需加载
